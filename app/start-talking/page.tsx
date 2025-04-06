@@ -1,8 +1,8 @@
 "use client"
 
-import React, { useState, useRef } from "react"
+import React, { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronLeft, Send, Battery, Wifi, Image, Mic } from "lucide-react"
+import { ChevronLeft, Send, Battery, Wifi, Image, Mic, Loader2, AlertCircle } from "lucide-react"
 import { motion } from "framer-motion"
 
 export default function StartTalking() {
@@ -29,7 +29,18 @@ export default function StartTalking() {
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
     if (files) {
-      setSelectedImages(Array.from(files))
+      // Validate file types
+      const validFiles = Array.from(files).filter(file => 
+        file.type.startsWith('image/')
+      )
+      
+      if (validFiles.length === 0) {
+        setError("Please select valid image files")
+        return
+      }
+      
+      setSelectedImages(validFiles)
+      setError(null)
     }
   }
 
@@ -61,10 +72,20 @@ export default function StartTalking() {
         throw new Error(data.error || 'Upload failed')
       }
 
-      // Navigate to conversation page with AI response
-      router.push(`/conversation?analysis=${encodeURIComponent(data.analysis)}&reply=${encodeURIComponent(data.reply)}`)
+      // Store the analysis data in localStorage instead of passing it through URL
+      try {
+        // Store the analysis data in localStorage
+        localStorage.setItem('conversationAnalysis', data.analysis)
+        
+        // Navigate to conversation page without parameters
+        router.push('/conversation')
+      } catch (storageError) {
+        console.error("Error storing analysis data:", storageError)
+        setError("Failed to process analysis data. Please try again.")
+      }
 
     } catch (err) {
+      console.error("Error during image analysis:", err)
       setError(err instanceof Error ? err.message : 'An unknown error occurred')
     } finally {
       setLoading(false)
@@ -72,7 +93,7 @@ export default function StartTalking() {
   }
 
   // Effect for time update
-  React.useEffect(() => {
+  useEffect(() => {
     updateTime()
     const interval = setInterval(updateTime, 60000)
     return () => clearInterval(interval)
@@ -150,8 +171,15 @@ export default function StartTalking() {
 
         {/* Error Display */}
         {error && (
-          <div className="bg-red-500/20 border border-red-500 text-red-300 p-3 rounded-lg mb-4">
-            {error}
+          <div className="bg-red-500/20 border border-red-500 text-red-300 p-3 rounded-lg mb-4 flex items-start">
+            <AlertCircle className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-medium">Error</p>
+              <p>{error}</p>
+              <p className="text-xs mt-2 text-gray-400">
+                If this error persists, please try again later or contact support.
+              </p>
+            </div>
           </div>
         )}
 
@@ -166,7 +194,14 @@ export default function StartTalking() {
               : "bg-blue-500 hover:bg-blue-600"
           }`}
         >
-          {loading ? "Analyzing..." : "Generate Conversation"}
+          {loading ? (
+            <div className="flex items-center justify-center">
+              <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+              Analyzing...
+            </div>
+          ) : (
+            "Start Conversation"
+          )}
         </motion.button>
       </div>
     </div>

@@ -1,9 +1,10 @@
+// lib/gemini-service.ts
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export class GeminiService {
   private genAI: GoogleGenerativeAI;
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string = process.env.GEMINI_API_KEY || "") {
     if (!apiKey) {
       throw new Error("Gemini API key is required");
     }
@@ -11,7 +12,7 @@ export class GeminiService {
   }
 
   async analyzeImage(imageFile: Buffer): Promise<string> {
-    const model = this.genAI.getGenerativeModel({ model: "gemini-pro-vision" });
+    const model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     try {
       const result = await model.generateContent({
@@ -36,24 +37,10 @@ export class GeminiService {
     }
   }
 
-  async generateReply(conversationContext: string, messageStyle: any): Promise<string> {
-    const model = this.genAI.getGenerativeModel({ model: "gemini-pro" });
+  async generateReply(userMessage: string, prompt: string): Promise<string> {
+    const model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     try {
-      const prompt = `
-        Based on the following communication context and style analysis, 
-        generate a realistic, contextually appropriate reply that mimics 
-        the communication pattern:
-
-        Communication Context: ${conversationContext}
-        
-        Reply Guidelines:
-        - Maintain the exact tone and communication style
-        - Use similar emoji patterns
-        - Respond as if you are the person being simulated
-        - Keep the response natural and conversational
-      `;
-
       const result = await model.generateContent(prompt);
       return result.response.text();
     } catch (error) {

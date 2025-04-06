@@ -19,7 +19,7 @@ export class GeminiService {
         contents: [{
           role: "user",
           parts: [
-            { text: "Carefully analyze the text and context of this image. Extract the communication style, tone, typical phrases, emoji usage, and overall communication pattern." },
+            { text: "Carefully analyze this text message screenshot. Pay special attention to the grey messages (the ones being received) and extract their communication style, tone, typical phrases, emoji usage, and overall communication pattern. Identify the specific characteristics of the grey messages that make them distinct from the blue messages. Note any recurring patterns, vocabulary choices, sentence structures, and emotional expressions in the grey messages. Also identify the topics, interests, and personality traits of the person sending the grey messages based on their content." },
             { 
               inlineData: { 
                 mimeType: "image/jpeg", 

@@ -3,7 +3,7 @@
 import React from "react"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronLeft, Battery, Wifi } from "lucide-react"
+import { ChevronLeft, Battery, Wifi, Send, Loader2 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
 export default function Chat() {
@@ -102,7 +102,7 @@ export default function Chat() {
       </div>
 
       {/* Chat area */}
-      <div className="flex-1 p-4 overflow-y-auto bg-[#000000]">
+      <div className="flex-1 p-4 overflow-y-auto bg-black">
         <div className="flex flex-col space-y-3">
           <AnimatePresence>
             {messages.map((msg, index) => (
@@ -140,7 +140,7 @@ export default function Chat() {
 
       {/* Message input */}
       <div className="p-3 border-t border-gray-800 bg-gray-900">
-        <div className="flex items-center bg-gray-800 rounded-full px-4 py-2">
+        <div className="flex items-center bg-gray-800 rounded-full px-3 py-2">
           <input
             type="text"
             value=""
@@ -153,8 +153,8 @@ export default function Chat() {
       </div>
 
       {/* iPhone home indicator */}
-      <div className="py-2 flex justify-center bg-black">
-        <div className="w-32 h-1 bg-gray-600 rounded-full"></div>
+      <div className="py-1 flex justify-center bg-black">
+        <div className="w-24 h-1 bg-gray-600 rounded-full"></div>
       </div>
     </div>
   )

@@ -2,19 +2,25 @@
 
 import React, { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronLeft, Battery, Wifi, Send, Loader2 } from "lucide-react"
+import { ChevronLeft, Send, Battery, Wifi, Mic, Loader2 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
+
+interface Message {
+  id: string
+  text: string
+  sender: "user" | "ai"
+  timestamp: string
+}
 
 export default function Conversation() {
   const router = useRouter()
-  const [currentTime, setCurrentTime] = useState("")
-  const [analysis, setAnalysis] = useState("")
-  const [messages, setMessages] = useState<{ text: string; isUser: boolean; timestamp: string }[]>([])
+  const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState("")
-  const [loading, setLoading] = useState(true)
-  const [sending, setSending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [currentTime, setCurrentTime] = useState("")
+  const [analysis, setAnalysis] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
 
   // Time update function
   const updateTime = () => {
@@ -24,97 +30,104 @@ export default function Conversation() {
     const ampm = hours >= 12 ? "PM" : "AM"
     hours = hours % 12
     hours = hours ? hours : 12
-    return `${hours}:${minutes} ${ampm}`
+    setCurrentTime(`${hours}:${minutes} ${ampm}`)
   }
 
-  useEffect(() => {
-    try {
-      // Get analysis from localStorage instead of URL parameters
-      const storedAnalysis = localStorage.getItem('conversationAnalysis')
-
-      if (storedAnalysis) {
-        setAnalysis(storedAnalysis)
-        
-        // Add initial AI message
-        const initialMessage = {
-          text: "Hi! I've analyzed your conversation style. How can I help you today?",
-          isUser: false,
-          timestamp: updateTime()
-        }
-        setMessages([initialMessage])
-      } else {
-        // If analysis data is missing, redirect back to start-talking
-        router.push('/start-talking')
-      }
-    } catch (err) {
-      console.error("Error retrieving analysis data:", err)
-      setError("Failed to load conversation data. Please try again.")
-    } finally {
-      setLoading(false)
-    }
-  }, [router])
-
-  // Scroll to bottom when messages change
-  useEffect(() => {
+  // Scroll to bottom of messages
+  const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages])
+  }
 
+  // Handle sending a new message
   const handleSendMessage = async () => {
-    if (!newMessage.trim()) return
+    if (!newMessage.trim() || loading) return
 
-    // Add user message
-    const userMessage = {
-      text: newMessage,
-      isUser: true,
-      timestamp: updateTime()
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      text: newMessage.trim(),
+      sender: "user",
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
-    
+
     setMessages(prev => [...prev, userMessage])
     setNewMessage("")
-    setSending(true)
+    setLoading(true)
 
     try {
-      // Send message to API for processing
-      const response = await fetch('/api/chat', {
-        method: 'POST',
+      const response = await fetch("/api/chat", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          message: newMessage,
+          message: userMessage.text,
           analysis: analysis
         }),
       })
 
       if (!response.ok) {
-        throw new Error('Failed to get response')
+        throw new Error("Failed to get response")
       }
 
       const data = await response.json()
-      
-      // Add AI response
-      const aiMessage = {
+
+      const aiMessage: Message = {
+        id: (Date.now() + 1).toString(),
         text: data.reply,
-        isUser: false,
-        timestamp: updateTime()
+        sender: "ai",
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       }
-      
+
       setMessages(prev => [...prev, aiMessage])
     } catch (error) {
-      console.error('Error sending message:', error)
-      
-      // Add error message
-      const errorMessage = {
-        text: "Sorry, I couldn't process your message. Please try again.",
-        isUser: false,
-        timestamp: updateTime()
+      console.error("Error sending message:", error)
+      // Add error message to chat
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        text: "Sorry, I encountered an error. Please try again.",
+        sender: "ai",
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       }
-      
       setMessages(prev => [...prev, errorMessage])
     } finally {
-      setSending(false)
+      setLoading(false)
     }
   }
+
+  // Handle textarea resize
+  const handleTextareaInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const textarea = e.target
+    textarea.style.height = 'auto'
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 150)}px`
+  }
+
+  // Initialize chat
+  useEffect(() => {
+    // Get analysis from localStorage
+    const storedAnalysis = localStorage.getItem('conversationAnalysis')
+    if (storedAnalysis) {
+      setAnalysis(storedAnalysis)
+    }
+
+    // Add welcome message
+    const welcomeMessage: Message = {
+      id: Date.now().toString(),
+      text: "Hi! I've analyzed your conversation style. How can I help you today?",
+      sender: "ai",
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }
+    setMessages([welcomeMessage])
+
+    // Set up time updates
+    updateTime()
+    const interval = setInterval(updateTime, 60000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages])
 
   return (
     <div className="flex flex-col h-screen bg-black text-white">
@@ -130,87 +143,89 @@ export default function Conversation() {
 
       {/* Chat header */}
       <div className="flex items-center px-4 py-2 bg-gray-900 border-b border-gray-800">
-        <button onClick={() => router.back()} className="mr-2">
+        <button 
+          onClick={() => router.back()} 
+          className="mr-2 p-2 -ml-2 rounded-full hover:bg-gray-800 transition-colors"
+          aria-label="Go back"
+        >
           <ChevronLeft className="h-5 w-5 text-blue-500" />
         </button>
         <div className="flex-1">
-          <div className="font-semibold">AI Companion</div>
-          <div className="text-xs text-gray-400">Conversation</div>
+          <div className="font-semibold text-sm">AI Companion</div>
+          <div className="text-xs text-gray-400">Chat</div>
         </div>
       </div>
 
-      {/* Chat Messages */}
-      <div className="flex-1 p-4 overflow-y-auto bg-black">
-        {loading ? (
-          <div className="flex justify-center items-center h-full">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-          </div>
-        ) : error ? (
-          <div className="flex flex-col items-center justify-center h-full text-center p-4">
-            <div className="text-red-500 mb-2">⚠️</div>
-            <h3 className="text-xl font-semibold mb-2">Error</h3>
-            <p className="text-gray-400 mb-4">{error}</p>
-            <button 
-              onClick={() => router.push('/start-talking')}
-              className="px-4 py-2 bg-blue-500 rounded-full text-white font-medium"
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-black">
+        <AnimatePresence>
+          {messages.map((message) => (
+            <motion.div
+              key={message.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}
             >
-              Go Back
-            </button>
-          </div>
-        ) : (
-          <div className="flex flex-col space-y-4">
-            <AnimatePresence>
-              {messages.map((msg, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className={`flex ${msg.isUser ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div 
-                    className={`max-w-[80%] p-3 rounded-2xl ${
-                      msg.isUser 
-                        ? 'bg-blue-500 text-white rounded-br-sm' 
-                        : 'bg-gray-700 text-white rounded-bl-sm'
-                    }`}
-                  >
-                    <p>{msg.text}</p>
-                    <div className="text-xs text-gray-300 mt-1 opacity-70">{msg.timestamp}</div>
-                  </div>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-            <div ref={messagesEndRef} />
-          </div>
-        )}
+              <div
+                className={`max-w-[80%] p-3 rounded-2xl ${
+                  message.sender === "user"
+                    ? "bg-blue-500 text-white rounded-br-sm"
+                    : "bg-gray-700 text-white rounded-bl-sm"
+                }`}
+              >
+                <p className="text-sm whitespace-pre-wrap break-words">{message.text}</p>
+                <p className="text-xs text-gray-300 mt-1 opacity-70">{message.timestamp}</p>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+        <div ref={messagesEndRef} />
       </div>
 
-      {/* Message Input */}
+      {/* Message input */}
       <div className="p-3 border-t border-gray-800 bg-gray-900">
-        <div className="flex items-center bg-gray-800 rounded-full px-4 py-2">
-          <input
-            type="text"
+        <div className="flex items-center bg-gray-800 rounded-full px-3 py-2">
+          <textarea
+            ref={inputRef}
             value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-            placeholder="Type a message..."
-            className="flex-1 bg-transparent outline-none"
-            disabled={sending || !!error}
+            onChange={(e) => {
+              setNewMessage(e.target.value)
+              handleTextareaInput(e)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault()
+                handleSendMessage()
+              }
+            }}
+            placeholder="Message..."
+            className="flex-1 bg-transparent text-white placeholder-gray-400 resize-none focus:outline-none text-sm"
+            rows={1}
+            style={{ maxHeight: "150px" }}
           />
-          <button 
-            onClick={handleSendMessage} 
-            disabled={sending || !newMessage.trim() || !!error}
-            className={`ml-2 ${sending || !newMessage.trim() || !!error ? 'text-gray-500' : 'text-blue-500'} font-semibold`}
+          <button
+            onClick={handleSendMessage}
+            disabled={!newMessage.trim() || loading}
+            className={`ml-2 p-1 rounded-full ${
+              !newMessage.trim() || loading
+                ? "text-gray-500"
+                : "text-blue-500"
+            }`}
+            aria-label="Send message"
           >
-            {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+            {loading ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <Send className="h-5 w-5" />
+            )}
           </button>
         </div>
       </div>
 
       {/* iPhone home indicator */}
-      <div className="py-2 flex justify-center bg-black">
-        <div className="w-32 h-1 bg-gray-600 rounded-full"></div>
+      <div className="py-1 flex justify-center bg-black">
+        <div className="w-24 h-1 bg-gray-600 rounded-full"></div>
       </div>
     </div>
   )

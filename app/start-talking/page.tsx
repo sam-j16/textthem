@@ -1,17 +1,17 @@
 "use client"
 
-import React, { useState, useRef, useEffect } from "react"
+import React, { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronLeft, Send, Battery, Wifi, Image, Mic, Loader2, AlertCircle } from "lucide-react"
-import { motion } from "framer-motion"
+import { ChevronLeft, Upload, X, AlertCircle, Battery, Wifi } from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
 
 export default function StartTalking() {
   const router = useRouter()
   const [selectedImages, setSelectedImages] = useState<File[]>([])
-  const [contextText, setContextText] = useState<string>("")
-  const [loading, setLoading] = useState<boolean>(false)
+  const [contextText, setContextText] = useState("")
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [currentTime, setCurrentTime] = useState<string>("")
+  const [currentTime, setCurrentTime] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Time update function
@@ -25,26 +25,24 @@ export default function StartTalking() {
     setCurrentTime(`${hours}:${minutes} ${ampm}`)
   }
 
-  // Image upload handler
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files
-    if (files) {
-      // Validate file types
-      const validFiles = Array.from(files).filter(file => 
-        file.type.startsWith('image/')
-      )
-      
-      if (validFiles.length === 0) {
-        setError("Please select valid image files")
-        return
-      }
-      
-      setSelectedImages(validFiles)
-      setError(null)
+  // Initialize time
+  React.useEffect(() => {
+    updateTime()
+    const interval = setInterval(updateTime, 60000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const filesArray = Array.from(e.target.files)
+      setSelectedImages(prev => [...prev, ...filesArray])
     }
   }
 
-  // Form submission handler
+  const removeImage = (index: number) => {
+    setSelectedImages(prev => prev.filter((_, i) => i !== index))
+  }
+
   const handleSubmit = async () => {
     if (selectedImages.length === 0) {
       setError("Please upload at least one image")
@@ -92,13 +90,6 @@ export default function StartTalking() {
     }
   }
 
-  // Effect for time update
-  useEffect(() => {
-    updateTime()
-    const interval = setInterval(updateTime, 60000)
-    return () => clearInterval(interval)
-  }, [])
-
   return (
     <div className="flex flex-col h-screen bg-black text-white">
       {/* iPhone status bar */}
@@ -111,98 +102,118 @@ export default function StartTalking() {
         </div>
       </div>
 
-      {/* Chat header */}
+      {/* Header */}
       <div className="flex items-center px-4 py-2 bg-gray-900 border-b border-gray-800">
-        <button onClick={() => router.back()} className="mr-2">
+        <button 
+          onClick={() => router.back()} 
+          className="mr-2 p-2 -ml-2 rounded-full hover:bg-gray-800 transition-colors"
+          aria-label="Go back"
+        >
           <ChevronLeft className="h-5 w-5 text-blue-500" />
         </button>
         <div className="flex-1">
-          <div className="font-semibold">AI Companion</div>
-          <div className="text-xs text-gray-400">Image Analysis</div>
+          <div className="font-semibold text-sm">Upload Screenshots</div>
+          <div className="text-xs text-gray-400">Start a conversation</div>
         </div>
       </div>
 
       {/* Main Content */}
       <div className="flex-1 p-4 overflow-y-auto bg-black">
-        {/* Image Upload Section */}
-        <div className="mb-4">
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold mb-2">Upload Text Message Screenshots</h2>
+          <p className="text-sm text-gray-400 mb-4">
+            Upload screenshots of text conversations to analyze the communication style.
+          </p>
+          
+          {/* Image Upload Area */}
           <div 
+            className="border-2 border-dashed border-gray-700 rounded-lg p-4 mb-4 text-center cursor-pointer hover:border-blue-500 transition-colors"
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition"
           >
-            <input 
-              type="file" 
-              multiple 
+            <input
+              type="file"
               accept="image/*"
-              ref={fileInputRef}
-              onChange={handleImageUpload}
+              multiple
+              onChange={handleImageSelect}
               className="hidden"
+              ref={fileInputRef}
             />
-            <Image className="mx-auto mb-4 text-gray-400" size={48} />
-            <p className="text-gray-400">
-              {selectedImages.length > 0 
-                ? `${selectedImages.length} image(s) selected` 
-                : "Click to upload conversation screenshots"}
-            </p>
+            <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+            <p className="text-sm text-gray-400">Tap to select images</p>
+            <p className="text-xs text-gray-500 mt-1">or drag and drop</p>
           </div>
-
-          {/* Selected Images Preview */}
+          
+          {/* Selected Images */}
           {selectedImages.length > 0 && (
-            <div className="flex space-x-2 mt-4 overflow-x-auto">
-              {selectedImages.map((file, index) => (
-                <img 
-                  key={index}
-                  src={URL.createObjectURL(file)}
-                  alt={`Uploaded image ${index + 1}`}
-                  className="h-20 w-20 object-cover rounded-md"
-                />
-              ))}
+            <div className="mb-4">
+              <h3 className="text-sm font-medium mb-2">Selected Images ({selectedImages.length})</h3>
+              <div className="grid grid-cols-3 gap-2">
+                {selectedImages.map((file, index) => (
+                  <div key={index} className="relative group">
+                    <img
+                      src={URL.createObjectURL(file)}
+                      alt={`Preview ${index + 1}`}
+                      className="w-full h-24 object-cover rounded-lg"
+                    />
+                    <button
+                      onClick={() => removeImage(index)}
+                      className="absolute top-1 right-1 bg-black bg-opacity-50 rounded-full p-1 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                      aria-label="Remove image"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
-        </div>
-
-        {/* Context Input */}
-        <textarea 
-          value={contextText}
-          onChange={(e) => setContextText(e.target.value)}
-          placeholder="Optional: Provide additional context about the conversation"
-          className="w-full bg-gray-800 rounded-lg p-3 mb-4 text-white min-h-[100px]"
-        />
-
-        {/* Error Display */}
-        {error && (
-          <div className="bg-red-500/20 border border-red-500 text-red-300 p-3 rounded-lg mb-4 flex items-start">
-            <AlertCircle className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="font-medium">Error</p>
-              <p>{error}</p>
-              <p className="text-xs mt-2 text-gray-400">
-                If this error persists, please try again later or contact support.
-              </p>
-            </div>
+          
+          {/* Context Input */}
+          <div className="mb-4">
+            <label htmlFor="context" className="block text-sm font-medium mb-2">
+              Additional Context (Optional)
+            </label>
+            <textarea
+              id="context"
+              value={contextText}
+              onChange={(e) => setContextText(e.target.value)}
+              placeholder="Add any additional context about the conversation..."
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              rows={3}
+            />
           </div>
-        )}
-
-        {/* Submit Button */}
-        <motion.button
-          whileTap={{ scale: 0.95 }}
-          onClick={handleSubmit}
-          disabled={loading}
-          className={`w-full py-3 rounded-full text-white font-semibold transition-colors ${
-            loading 
-              ? "bg-gray-700 cursor-not-allowed" 
-              : "bg-blue-500 hover:bg-blue-600"
-          }`}
-        >
-          {loading ? (
-            <div className="flex items-center justify-center">
-              <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-              Analyzing...
+          
+          {/* Error Message */}
+          {error && (
+            <div className="mb-4 p-3 bg-red-900 bg-opacity-20 border border-red-800 rounded-lg flex items-start">
+              <AlertCircle className="h-5 w-5 text-red-500 mr-2 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm text-red-400">{error}</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  If this error persists, please contact support.
+                </p>
+              </div>
             </div>
-          ) : (
-            "Start Conversation"
           )}
-        </motion.button>
+          
+          {/* Submit Button */}
+          <button
+            onClick={handleSubmit}
+            disabled={loading || selectedImages.length === 0}
+            className={`w-full py-3 px-4 rounded-full font-medium text-sm ${
+              loading || selectedImages.length === 0
+                ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                : 'bg-blue-500 text-white hover:bg-blue-600'
+            } transition-colors`}
+          >
+            {loading ? 'Processing...' : 'Start Conversation'}
+          </button>
+        </div>
+      </div>
+
+      {/* iPhone home indicator */}
+      <div className="py-1 flex justify-center bg-black">
+        <div className="w-24 h-1 bg-gray-600 rounded-full"></div>
       </div>
     </div>
   )

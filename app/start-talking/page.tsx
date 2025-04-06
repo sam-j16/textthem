@@ -1,20 +1,20 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, Send, Battery, Wifi, Image, Mic } from "lucide-react"
+import { motion } from "framer-motion"
 
 export default function StartTalking() {
   const router = useRouter()
-  const [message, setMessage] = useState("")
-  const [currentTime, setCurrentTime] = useState("")
+  const [selectedImages, setSelectedImages] = useState<File[]>([])
+  const [contextText, setContextText] = useState<string>("")
+  const [loading, setLoading] = useState<boolean>(false)
+  const [error, setError] = useState<string | null>(null)
+  const [currentTime, setCurrentTime] = useState<string>("")
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    updateTime()
-    const interval = setInterval(updateTime, 60000)
-    return () => clearInterval(interval)
-  }, [])
-
+  // Time update function
   const updateTime = () => {
     const now = new Date()
     let hours = now.getHours()
@@ -24,6 +24,59 @@ export default function StartTalking() {
     hours = hours ? hours : 12
     setCurrentTime(`${hours}:${minutes} ${ampm}`)
   }
+
+  // Image upload handler
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files
+    if (files) {
+      setSelectedImages(Array.from(files))
+    }
+  }
+
+  // Form submission handler
+  const handleSubmit = async () => {
+    if (selectedImages.length === 0) {
+      setError("Please upload at least one image")
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+
+    const formData = new FormData()
+    selectedImages.forEach((file) => {
+      formData.append('images', file)
+    })
+    formData.append('context', contextText)
+
+    try {
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Upload failed')
+      }
+
+      // Navigate to conversation page with AI response
+      router.push(`/conversation?analysis=${encodeURIComponent(data.analysis)}&reply=${encodeURIComponent(data.reply)}`)
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An unknown error occurred')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Effect for time update
+  React.useEffect(() => {
+    updateTime()
+    const interval = setInterval(updateTime, 60000)
+    return () => clearInterval(interval)
+  }, [])
 
   return (
     <div className="flex flex-col h-screen bg-black text-white">
@@ -44,57 +97,78 @@ export default function StartTalking() {
         </button>
         <div className="flex-1">
           <div className="font-semibold">AI Companion</div>
-          <div className="text-xs text-gray-400">Online</div>
+          <div className="text-xs text-gray-400">Image Analysis</div>
         </div>
       </div>
 
-      {/* Chat area */}
+      {/* Main Content */}
       <div className="flex-1 p-4 overflow-y-auto bg-black">
-        <div className="flex flex-col space-y-3">
-          <div className="max-w-[80%] p-3 rounded-2xl bg-gray-700 text-white self-start rounded-bl-sm">
-            <p>I'm here to listen. How are you feeling today?</p>
-            <div className="text-xs text-gray-400 mt-1">{currentTime}</div>
+        {/* Image Upload Section */}
+        <div className="mb-4">
+          <div 
+            onClick={() => fileInputRef.current?.click()}
+            className="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition"
+          >
+            <input 
+              type="file" 
+              multiple 
+              accept="image/*"
+              ref={fileInputRef}
+              onChange={handleImageUpload}
+              className="hidden"
+            />
+            <Image className="mx-auto mb-4 text-gray-400" size={48} />
+            <p className="text-gray-400">
+              {selectedImages.length > 0 
+                ? `${selectedImages.length} image(s) selected` 
+                : "Click to upload conversation screenshots"}
+            </p>
           </div>
 
-          <div className="flex justify-center my-8">
-            <div className="text-center text-gray-400 text-sm">
-              <p>This is where your backend integration would start.</p>
-              <p>Users can now talk to your AI companion.</p>
+          {/* Selected Images Preview */}
+          {selectedImages.length > 0 && (
+            <div className="flex space-x-2 mt-4 overflow-x-auto">
+              {selectedImages.map((file, index) => (
+                <img 
+                  key={index}
+                  src={URL.createObjectURL(file)}
+                  alt={`Uploaded image ${index + 1}`}
+                  className="h-20 w-20 object-cover rounded-md"
+                />
+              ))}
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Message input */}
-      <div className="p-3 border-t border-gray-800 bg-gray-900">
-        <div className="flex items-center bg-gray-800 rounded-full px-4 py-2">
-          <button className="mr-2 text-gray-400">
-            <Image className="h-5 w-5" />
-          </button>
-          <input
-            type="text"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Message..."
-            className="flex-1 bg-transparent outline-none"
-          />
-          {message.trim() ? (
-            <button className="ml-2 text-blue-500">
-              <Send className="h-5 w-5" />
-            </button>
-          ) : (
-            <button className="ml-2 text-gray-400">
-              <Mic className="h-5 w-5" />
-            </button>
           )}
         </div>
-      </div>
 
-      {/* iPhone home indicator */}
-      <div className="py-2 flex justify-center bg-black">
-        <div className="w-32 h-1 bg-gray-600 rounded-full"></div>
+        {/* Context Input */}
+        <textarea 
+          value={contextText}
+          onChange={(e) => setContextText(e.target.value)}
+          placeholder="Optional: Provide additional context about the conversation"
+          className="w-full bg-gray-800 rounded-lg p-3 mb-4 text-white min-h-[100px]"
+        />
+
+        {/* Error Display */}
+        {error && (
+          <div className="bg-red-500/20 border border-red-500 text-red-300 p-3 rounded-lg mb-4">
+            {error}
+          </div>
+        )}
+
+        {/* Submit Button */}
+        <motion.button
+          whileTap={{ scale: 0.95 }}
+          onClick={handleSubmit}
+          disabled={loading}
+          className={`w-full py-3 rounded-full text-white font-semibold transition-colors ${
+            loading 
+              ? "bg-gray-700 cursor-not-allowed" 
+              : "bg-blue-500 hover:bg-blue-600"
+          }`}
+        >
+          {loading ? "Analyzing..." : "Generate Conversation"}
+        </motion.button>
       </div>
     </div>
   )
 }
-
